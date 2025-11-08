@@ -9,7 +9,7 @@ pub enum TransactionType {
 
 #[derive(Debug)]
 pub struct Transaction {
-    pub id: u64,
+    pub id: String,
     pub date: NaiveDate,
     pub description: String,
     pub amount: Decimal,
@@ -18,7 +18,7 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    pub fn new(id: u64, date: NaiveDate, description: String, amount: Decimal, transaction_type: TransactionType, category: String) -> Self {
+    pub fn new(id: String, date: NaiveDate, description: String, amount: Decimal, transaction_type: TransactionType, category: String) -> Self {
         Self {
             id,
             date,
