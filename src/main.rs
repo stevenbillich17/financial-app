@@ -1,10 +1,10 @@
 mod models;
 mod operations;
 
-use std::io;
 use models::transaction::Transaction;
-use operations::add::read_user_input_and_create_transaction;
+use operations::add::create_transaction;
 use operations::remove::read_user_input_and_remove_transaction;
+use std::io;
 
 pub enum UserCommands {
     Add,
@@ -21,11 +21,13 @@ fn main() {
         println!("Please enter a command (add, remove, exit):");
 
         // read user input
-        let mut input = String::new();
-        io::stdin()
-            .read_line(&mut input)
-            .expect("Failed to read line");
-        let input = input.trim();
+        let input = match read_user_input() {
+            Ok(cmd) => cmd,
+            Err(e) => {
+                println!("Error reading input: {}", e);
+                continue;
+            }
+        };
         let parts: Vec<&str> = input.split_whitespace().collect();
         if parts.is_empty() {
             continue;
@@ -33,8 +35,17 @@ fn main() {
         let command = check_for_command(parts[0]);
         match command {
             UserCommands::Add => {
-                println!("Add command selected. Please enter transaction details in the format: date(YYYY-MM-DD), description, amount, type(income/expense), category");
-                let transaction = match read_user_input_and_create_transaction() {
+                println!(
+                    "Add command selected. Please enter transaction details in the format: date(YYYY-MM-DD), description, amount, type(income/expense), category"
+                );
+                let mut input = match read_user_input() {
+                    Ok(details) => details,
+                    Err(e) => {
+                        println!("Error reading input: {}", e);
+                        continue;
+                    }
+                };
+                let transaction = match create_transaction(&mut input) {
                     Ok(tx) => tx,
                     Err(e) => {
                         println!("Error adding transaction: {}", e);
@@ -60,6 +71,14 @@ fn main() {
             }
         }
     }
+}
+
+fn read_user_input() -> Result<String, String> {
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .map_err(|_| "Failed to read line".to_string())?;
+    Ok(input.trim().to_string())
 }
 
 fn check_for_command(input: &str) -> UserCommands {

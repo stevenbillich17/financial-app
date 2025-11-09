@@ -1,7 +1,7 @@
 use rust_decimal::Decimal;
 use chrono::NaiveDate;
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum TransactionType {
     Income,
     Expense
