@@ -4,6 +4,7 @@ mod operations;
 use std::io;
 use models::transaction::Transaction;
 use operations::add::read_user_input_and_create_transaction;
+use operations::remove::read_user_input_and_remove_transaction;
 
 pub enum UserCommands {
     Add,
@@ -42,13 +43,16 @@ fn main() {
                     }
                 };
                 list.push(transaction);
-
                 println!("Transaction added successfully.");
                 println!("Current Transactions: {:?}", list);
             }
             UserCommands::Remove => {
                 println!("Remove command selected. Provide the transaction ID to remove:");
-                let mut id_input = String::new();
+                let remove_result = read_user_input_and_remove_transaction(&mut list);
+                match remove_result {
+                    Ok(_) => println!("Transaction removed successfully."),
+                    Err(err) => println!("Error: {}", err),
+                }
             }
             UserCommands::Exit => {
                 println!("Exiting the application.");
