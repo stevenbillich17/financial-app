@@ -38,14 +38,14 @@ fn main() {
                 println!(
                     "Add command selected. Please enter transaction details in the format: date(YYYY-MM-DD), description, amount, type(income/expense), category"
                 );
-                let mut input = match read_user_input() {
+                let input = match read_user_input() {
                     Ok(details) => details,
                     Err(e) => {
                         println!("Error reading input: {}", e);
                         continue;
                     }
                 };
-                let transaction = match create_transaction(&mut input) {
+                let transaction = match create_transaction(&input) {
                     Ok(tx) => tx,
                     Err(e) => {
                         println!("Error adding transaction: {}", e);
@@ -59,7 +59,14 @@ fn main() {
             }
             UserCommands::Remove => {
                 println!("Remove command selected. Provide the transaction ID to remove:");
-                let remove_result = read_user_input_and_remove_transaction(&mut list);
+                let input = match read_user_input() {
+                    Ok(details) => details,
+                    Err(e) => {
+                        println!("Error reading input: {}", e);
+                        continue;
+                    }
+                };
+                let remove_result = read_user_input_and_remove_transaction(&input, &mut list);
                 match remove_result {
                     Ok(_) => println!("Transaction removed successfully."),
                     Err(err) => println!("Error: {}", err),
