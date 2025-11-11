@@ -10,6 +10,7 @@ pub enum UserCommands {
     Add,
     Remove,
     Exit,
+    Print,
 }
 
 fn main() {
@@ -18,7 +19,7 @@ fn main() {
     println!("Welcome to the transaction manager!");
 
     loop {
-        println!("Please enter a command (add, remove, exit):");
+        println!("Please enter a command (add, remove, print, exit):");
 
         // read user input
         let input = match read_user_input() {
@@ -72,6 +73,12 @@ fn main() {
                     Err(err) => println!("Error: {}", err),
                 }
             }
+            UserCommands::Print => {
+                println!("Current Transactions:");
+                for transaction in &list {
+                    println!("{:?}", transaction); // Print each transaction on a new line
+                }
+            }
             UserCommands::Exit => {
                 println!("Exiting the application.");
                 break;
@@ -93,6 +100,7 @@ fn check_for_command(input: &str) -> UserCommands {
         "add" => UserCommands::Add,
         "remove" => UserCommands::Remove,
         "exit" => UserCommands::Exit,
+        "print" => UserCommands::Print,
         _ => {
             println!("No valid command found. Exiting.");
             UserCommands::Exit
