@@ -11,6 +11,7 @@ pub enum UserCommands {
     Remove,
     Exit,
     Print,
+    Search,
 }
 
 fn main() {
@@ -19,7 +20,7 @@ fn main() {
     println!("Welcome to the transaction manager!");
 
     loop {
-        println!("Please enter a command (add, remove, print, exit):");
+        println!("Please enter a command (add, remove, search, print, exit):");
 
         // read user input
         let input = match read_user_input() {
@@ -79,6 +80,25 @@ fn main() {
                     println!("{:?}", transaction); // Print each transaction on a new line
                 }
             }
+            UserCommands::Search => {
+                println!("Search command selected. Provide the category to search for:");
+                let input = match read_user_input() {
+                    Ok(details) => details,
+                    Err(e) => {
+                        println!("Error reading input: {}", e);
+                        continue;
+                    }
+                };
+                let results = operations::search_by_category::search_transactions_by_category(&input, &list);
+                if results.is_empty() {
+                    println!("No transactions found for category: {}", input);
+                } else {
+                    println!("Transactions found for category '{}':", input);
+                    for transaction in results {
+                        println!("{:?}", transaction);
+                    }
+                }
+            }
             UserCommands::Exit => {
                 println!("Exiting the application.");
                 break;
@@ -101,6 +121,7 @@ fn check_for_command(input: &str) -> UserCommands {
         "remove" => UserCommands::Remove,
         "exit" => UserCommands::Exit,
         "print" => UserCommands::Print,
+        "search" => UserCommands::Search,
         _ => {
             println!("No valid command found. Exiting.");
             UserCommands::Exit
