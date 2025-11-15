@@ -3,6 +3,7 @@ mod operations;
 
 use models::transaction::Transaction;
 use operations::add::create_transaction;
+use operations::import::import_transactions;
 use operations::remove::read_user_input_and_remove_transaction;
 use std::io;
 
@@ -12,6 +13,7 @@ pub enum UserCommands {
     Exit,
     Print,
     Search,
+    Import,
 }
 
 fn main() {
@@ -20,7 +22,7 @@ fn main() {
     println!("Welcome to the transaction manager!");
 
     loop {
-        println!("Please enter a command (add, remove, search, print, exit):");
+        println!("Please enter a command (add, import, remove, search, print, exit):");
 
         // read user input
         let input = match read_user_input() {
@@ -58,6 +60,28 @@ fn main() {
                 list.push(transaction);
                 println!("Transaction added successfully.");
                 println!("Current Transactions: {:?}", list);
+            }
+            UserCommands::Import => {
+                println!("Import command selected. Please enter the file path to import from (only csv for now):");
+                let input = match read_user_input() {
+                    Ok(details) => details,
+                    Err(e) => {
+                        println!("Error reading input: {}", e);
+                        continue;
+                    }
+                };
+                let import_result = import_transactions(
+                    operations::import::ImportFormat::CSV,
+                    &input,
+                );
+                match import_result {
+                    Ok(mut imported_transactions) => {
+                        let count = imported_transactions.len();
+                        list.append(&mut imported_transactions);
+                        println!("Successfully imported {} transactions.", count);
+                    }
+                    Err(err) => println!("Error importing transactions: {}", err),
+                }
             }
             UserCommands::Remove => {
                 println!("Remove command selected. Provide the transaction ID to remove:");
@@ -121,6 +145,7 @@ fn check_for_command(input: &str) -> UserCommands {
         "remove" => UserCommands::Remove,
         "exit" => UserCommands::Exit,
         "print" => UserCommands::Print,
+        "import" => UserCommands::Import,
         "search" => UserCommands::Search,
         _ => {
             println!("No valid command found. Exiting.");
