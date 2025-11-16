@@ -1,4 +1,9 @@
-# 📊 Financial CLI App (Rust)
+<p align="center">
+  <img src="assets/fino.png" alt="FINO Logo" width="220"/>
+</p>
+<h1 align="center">FINO</h1>
+
+# What is Fino?
 
 A command-line tool for managing personal financial transactions.  
 This project provides a lightweight, terminal-based interface for recording, searching, and importing financial data.  
