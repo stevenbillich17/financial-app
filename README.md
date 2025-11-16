@@ -1,7 +1,6 @@
 <p align="center">
   <img src="assets/fino.png" alt="FINO Logo" width="220"/>
 </p>
-<h1 align="center">FINO</h1>
 
 # What is Fino?
 
