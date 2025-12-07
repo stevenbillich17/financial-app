@@ -10,3 +10,5 @@ Cargo.lock
 
 # By default, ignore all tests' output
 **/tests/output/
+
+financial_app.db
