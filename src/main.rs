@@ -2,8 +2,6 @@ mod models;
 mod operations;
 mod db;
 
-use models::transaction::Transaction;
-use operations::add::create_transaction;
 use operations::import::import_transactions_to_db;
 use operations::remove::remove_transaction_from_db;
 use operations::search_by_category::search_transactions_by_category_db;
@@ -18,6 +16,7 @@ pub enum UserCommands {
     Print,
     Search,
     Import,
+    Rules,
 }
 
 fn main() {
@@ -25,7 +24,7 @@ fn main() {
     let conn = db::connection::establish_connection().expect("Failed to connect to the database");
 
     loop {
-        println!("Please enter a command (add, import, remove, search, print, exit):");
+        println!("Please enter a command (add, import, remove, search, print, rules, exit):");
 
         // read user input
         let input = match read_user_input() {
@@ -61,7 +60,7 @@ fn main() {
                 }
             }
             UserCommands::Import => {
-                println!("Import command selected. Please enter the file path to import from (only csv for now):");
+                println!("Import command selected. Please enter the file path to import from (supported formats: .csv, .ofx):");
                 let input = match read_user_input() {
                     Ok(details) => details,
                     Err(e) => {
@@ -69,9 +68,26 @@ fn main() {
                         continue;
                     }
                 };
+                
+                let format = if input.to_lowercase().ends_with(".ofx") {
+                    Some(operations::import::ImportFormat::OFX)
+                } else if input.to_lowercase().ends_with(".csv") {
+                    Some(operations::import::ImportFormat::CSV)
+                } else {
+                    None
+                };
+
+                let format = match format {
+                    Some(fmt) => fmt,
+                    None => {
+                        println!("Unrecognized file format for import. Supported formats are .csv and .ofx.");
+                        continue;
+                    }
+                };
+
                 let import_result = import_transactions_to_db(
                     &conn,
-                    operations::import::ImportFormat::CSV,
+                    format,
                     &input,
                 );
                 match import_result {
@@ -129,6 +145,54 @@ fn main() {
                     }
                 }
             }
+            UserCommands::Rules => {
+                println!("Rules command selected. Enter 'add' to create a new rule or 'list' to view existing rules:");
+                let input = match read_user_input() {
+                     Ok(details) => details,
+                     Err(e) => {
+                         println!("Error reading input: {}", e);
+                         continue;
+                     }
+                };
+                
+                match input.trim() {
+                    "add" => {
+                        println!("Enter rule details in format: pattern category (e.g., 'Uber Transport')");
+                        let rule_input = match read_user_input() {
+                            Ok(details) => details,
+                            Err(e) => {
+                                println!("Error reading rule details: {}", e);
+                                continue;
+                            }
+                        };
+                        
+                        if let Some((pattern, category)) = rule_input.rsplit_once(' ') {
+                             match db::rule_repository::add_rule(&conn, pattern.trim(), category.trim()) {
+                                 Ok(_) => println!("Rule added: '{}' -> '{}'", pattern.trim(), category.trim()),
+                                 Err(e) => println!("Failed to add rule: {}", e),
+                             }
+                        } else {
+                             println!("Invalid format. Please use: <regex_pattern> <category>");
+                        }
+                    },
+                    "list" => {
+                        match db::rule_repository::get_all_rules(&conn) {
+                            Ok(rules) => {
+                                if rules.is_empty() {
+                                    println!("No rules defined.");
+                                } else {
+                                    println!("Categorization Rules:");
+                                    for rule in rules {
+                                        println!("ID: {}, Pattern: '{}' -> Category: '{}'", rule.id, rule.pattern, rule.category);
+                                    }
+                                }
+                            },
+                            Err(e) => println!("Failed to fetch rules: {}", e),
+                        }
+                    },
+                    _ => println!("Invalid option. Use 'add' or 'list'."),
+                }
+            }
             UserCommands::Exit => {
                 println!("Exiting the application.");
                 break;
@@ -153,6 +217,7 @@ fn check_for_command(input: &str) -> UserCommands {
         "print" => UserCommands::Print,
         "import" => UserCommands::Import,
         "search" => UserCommands::Search,
+        "rules" => UserCommands::Rules,
         _ => {
             println!("No valid command found. Exiting.");
             UserCommands::Exit

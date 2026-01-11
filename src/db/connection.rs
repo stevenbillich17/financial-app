@@ -13,9 +13,18 @@ pub fn establish_connection() -> Result<Connection> {
         )",
         [],
     )?;
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS category_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pattern TEXT NOT NULL,
+            category TEXT NOT NULL
+        )",
+        [],
+    )?;
     Ok(conn)
 }
 
+#[cfg(test)]
 pub fn establish_test_connection() -> Result<Connection> {
     let conn = Connection::open_in_memory()?;
     conn.execute(
@@ -25,6 +34,14 @@ pub fn establish_test_connection() -> Result<Connection> {
             description TEXT NOT NULL,
             amount TEXT NOT NULL,
             transaction_type TEXT NOT NULL CHECK (transaction_type IN ('income', 'expense')),
+            category TEXT NOT NULL
+        )",
+        [],
+    )?;
+    conn.execute(
+        "CREATE TABLE category_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pattern TEXT NOT NULL,
             category TEXT NOT NULL
         )",
         [],

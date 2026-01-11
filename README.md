@@ -1,4 +1,4 @@
-<p align="center">
+﻿<p align="center">
   <img src="assets/fino.png" alt="FINO Logo" width="220"/>
 </p>
 
@@ -13,12 +13,17 @@ It is designed with a modular architecture that makes it easy to extend with new
 ## 🚀 Current Features
 
 ### ➤ Add Transactions  
-Create a new transaction using this format:
-All fields are validated:
+Create a new transaction manually. The system validates:
 - Date format (`YYYY-MM-DD`)
 - Decimal amount
 - Transaction type (`income` or `expense`)
 - Description/category length limits
+
+### ➤ Manage Categorization Rules (New!)
+Automate your transaction sorting by defining regex-based rules.
+- **Add Rule**: `rules add <regex_pattern> <category>`
+  - Example: `rules add ^Uber.* Transport` automatically categorizes "Uber Trip" as "Transport".
+- **List Rules**: `rules list` displays all active categorization rules.
 
 ---
 
@@ -37,26 +42,25 @@ Displays all currently stored transactions.
 
 ---
 
-### ➤ Import from CSV  
-Import transactions from a CSV file in the following format:
-Notes:
-- The file **does not need an ID column**.
-- A new UUID is generated automatically for each imported transaction.
-- The importer uses the `csv` crate.
-- All imported lines pass through the same validation rules as manual entries.
-- The importer handles:
-  - Invalid column counts  
-  - Incorrect formats  
-  - Binary or unreadable files  
-  - Invalid UTF-8  
+### ➤ Import Data (CSV & OFX)
+Import multiple file formats. The system automatically detects format by file extension.
 
-### 📁 Example CSV File
-``` 
+#### 1. CSV Import
+Standard comma-separated values.
+**Example:**
+```csv
 2025-01-03,Coffee,-4.65,expense,Food
 2025-01-04,Uber,-12.30,expense,Transport
 2025-01-05,Salary,2500.00,income,Salary
 2025-01-07,Groceries,-54.12,expense,Supermarket
 ```
+#### 2. OFX Import
+Supports Open Financial Exchange files (standard for bank exports).
+Parses DTPOSTED, TRNAMT, NAME, MEMO, and CATEGORY tags.
+Auto-Categorization:
+- Uses the <CATEGORY> tag from the file if present.
+- If missing, applies your Categorization Rules based on the description.
+- Defaults to Uncategorized.
 
 ## 🧱 Architecture Overview
 
@@ -76,13 +80,15 @@ Business logic:
 
 ## ▶️ Usage
 
-Run the interactive CLI:
+Run the interactive CLI: `cargo run`
+
 Available commands:
 - add
 - remove
 - search
 - print
 - import
+- rules
 - exit
 
 Tests cover:
@@ -104,3 +110,6 @@ rust_decimal = "1.39.0"
 uuid = { version = "1", features = ["v4"] }
 csv = "1.4.0"
 tempfile = "3.23.0"
+rusqlite = { version = "0.37.0", features = ["bundled"] }
+quick-xml = "0.38.4"
+regex = "1.12.2"
