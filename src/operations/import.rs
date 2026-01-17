@@ -21,7 +21,7 @@ pub fn import_transactions_to_db(
     conn: &Connection,
     format: ImportFormat,
     path: &str,
-) -> Result<usize, String> {
+) -> Result<(usize, Vec<i32>), String> {
     let mut transactions = match format {
         ImportFormat::CSV => import_csv(path)?,
         ImportFormat::OFX => import_ofx(path)?,
@@ -34,6 +34,7 @@ pub fn import_transactions_to_db(
         .collect();
 
     let mut count = 0;
+    let mut alert_ids = Vec::new();
     for transaction in &mut transactions {
         if transaction.category == "Uncategorized"
             || transaction.category.is_empty()
@@ -48,10 +49,12 @@ pub fn import_transactions_to_db(
         }
 
         repository::add_transaction(conn, transaction)?;
-        check_budget_and_alert(conn, transaction)?;
+        if let Some(alert_id) = check_budget_and_alert(conn, transaction)? {
+            alert_ids.push(alert_id);
+        }
         count += 1;
     }
-    Ok(count)
+    Ok((count, alert_ids))
 }
 
 fn import_ofx(path: &str) -> Result<Vec<Transaction>, String> {
@@ -217,6 +220,8 @@ fn import_csv(path: &str) -> Result<Vec<Transaction>, String> {
 mod tests {
     use super::*;
     use crate::db::connection::establish_test_connection;
+    use crate::db::budget_repository;
+    use crate::db::alert_repository;
     use std::io::Write;
     use tempfile::{NamedTempFile};
 
@@ -238,7 +243,7 @@ mod tests {
         let result = import_transactions_to_db(&conn, ImportFormat::CSV, tmp.path().to_str().unwrap());
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 2);
+        assert_eq!(result.unwrap().0, 2);
 
         let all = crate::db::repository::get_all_transactions(&conn).unwrap();
         assert_eq!(all.len(), 2);
@@ -296,7 +301,7 @@ bad-date,Salary,1500.00,income,Job
         let result = import_transactions_to_db(&conn, ImportFormat::OFX, tmp.path().to_str().unwrap());
 
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 1);
+        assert_eq!(result.unwrap().0, 1);
 
         let txs = crate::db::repository::get_all_transactions(&conn).unwrap();
         assert_eq!(txs[0].amount, Decimal::new(1050, 2));
@@ -348,5 +353,41 @@ bad-date,Salary,1500.00,income,Job
 
         let txs = crate::db::repository::get_all_transactions(&conn).unwrap();
         assert_eq!(txs[0].category, "Social");
+    }
+
+    #[test]
+    fn test_import_generates_budget_alerts() {
+        let conn = establish_test_connection().unwrap();
+        budget_repository::set_budget(&conn, "Food", &Decimal::new(500, 2)).unwrap();
+
+        let csv_data = "2025-11-11,Dinner,6.00,expense,Food";
+        let tmp = write_temp_csv(csv_data);
+
+        let result = import_transactions_to_db(&conn, ImportFormat::CSV, tmp.path().to_str().unwrap());
+        assert!(result.is_ok());
+
+        let imported_alerts = result.unwrap().1;
+        assert_eq!(imported_alerts.len(), 1);
+        let alerts = alert_repository::get_alerts_by_ids(&conn, &imported_alerts).unwrap();
+        assert_eq!(alerts.len(), 1);
+        assert!(alerts[0].message.contains("Budget exceeded"));
+    }
+
+    #[test]
+    fn test_import_generates_multiple_budget_alerts() {
+        let conn = establish_test_connection().unwrap();
+        budget_repository::set_budget(&conn, "Food", &Decimal::from_str("1.00").unwrap()).unwrap();
+        budget_repository::set_budget(&conn, "Travel", &Decimal::from_str("1.00").unwrap()).unwrap();
+
+        let csv_data = "2025-11-11,Dinner,2.00,expense,Food\n2025-11-12,Taxi,3.00,expense,Travel\n";
+        let tmp = write_temp_csv(csv_data);
+
+        let result = import_transactions_to_db(&conn, ImportFormat::CSV, tmp.path().to_str().unwrap());
+        assert!(result.is_ok());
+
+        let imported_alerts = result.unwrap().1;
+        assert_eq!(imported_alerts.len(), 2);
+        let alerts = alert_repository::get_alerts_by_ids(&conn, &imported_alerts).unwrap();
+        assert_eq!(alerts.len(), 2);
     }
 }

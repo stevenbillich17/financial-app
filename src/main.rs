@@ -9,6 +9,7 @@ use operations::budget::{set_budget_db, increase_budget_db, decrease_budget_db, 
 use std::io;
 
 use crate::operations::add::add_transaction_to_db;
+use crate::db::alert_repository;
 
 pub enum UserCommands {
     Add,
@@ -52,8 +53,15 @@ fn main() {
                     }
                 };
                 match add_transaction_to_db(&conn, &input) {
-                    Ok(_) => {
+                    Ok(alert_id) => {
                         println!("Transaction added successfully!");
+                        if let Some(alert_id) = alert_id {
+                            println!("Alerts generated:");
+                            let alerts = alert_repository::get_alerts_by_ids(&conn, &[alert_id]).unwrap_or_default();
+                            for alert in alerts {
+                                println!("[{}] {}", alert.category, alert.message);
+                            }
+                        }
                     }
                     Err(e) => {
                         println!("Error adding transaction: {}", e);
@@ -93,8 +101,15 @@ fn main() {
                     &input,
                 );
                 match import_result {
-                    Ok(number_of_imported_transactions) => {
+                    Ok((number_of_imported_transactions, alert_ids)) => {
                         println!("Successfully imported {} transactions.", number_of_imported_transactions);
+                        if !alert_ids.is_empty() {
+                            println!("Alerts generated during import:");
+                            let alerts = alert_repository::get_alerts_by_ids(&conn, &alert_ids).unwrap_or_default();
+                            for alert in alerts {
+                                println!("[{}] {}", alert.category, alert.message);
+                            }
+                        }
                     }
                     Err(err) => println!("Error importing transactions: {}", err),
                 }

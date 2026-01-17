@@ -52,16 +52,16 @@ pub fn create_transaction(input: &str) -> Result<Transaction, String> {
     ))
 }
 
-pub fn add_transaction_to_db(conn: &Connection, input: &str) -> Result<(), String> {
+pub fn add_transaction_to_db(conn: &Connection, input: &str) -> Result<Option<i32>, String> {
     let transaction = create_transaction(input)?;
     repository::add_transaction(conn, &transaction)?;
-    check_budget_and_alert(conn, &transaction)?;
-    Ok(())
+    let alert_id = check_budget_and_alert(conn, &transaction)?;
+    Ok(alert_id)
 }
 
-pub fn check_budget_and_alert(conn: &Connection, transaction: &Transaction) -> Result<(), String> {
+pub fn check_budget_and_alert(conn: &Connection, transaction: &Transaction) -> Result<Option<i32>, String> {
     if transaction.transaction_type != TransactionType::Expense {
-        return Ok(());
+        return Ok(None);
     }
 
     if let Some(budget) = budget_repository::get_budget(conn, &transaction.category)? {
@@ -71,10 +71,11 @@ pub fn check_budget_and_alert(conn: &Connection, transaction: &Transaction) -> R
                 "Budget exceeded for category '{}': budget {}, spent {}",
                 budget.category, budget.amount, total
             );
-            alert_repository::add_alert(conn, &budget.category, &message)?;
+            let alert_id = alert_repository::add_alert(conn, &budget.category, &message)?;
+            return Ok(Some(alert_id));
         }
     }
-    Ok(())
+    Ok(None)
 }
 
 #[cfg(test)]
@@ -82,7 +83,6 @@ mod tests {
     use super::*;
     use crate::db::connection::establish_test_connection;
     use crate::db::budget_repository;
-    use crate::db::alert_repository;
     use rust_decimal::Decimal;
 
     #[test]
@@ -135,6 +135,7 @@ mod tests {
         
         let result = add_transaction_to_db(&conn, input);
         assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
     }
 
     #[test]
@@ -151,22 +152,17 @@ mod tests {
     fn test_budget_alert_generated_on_exceed() {
         let conn = establish_test_connection().unwrap();
         budget_repository::set_budget(&conn, "Food", &Decimal::new(500, 2)).unwrap();
+        let alert_id = add_transaction_to_db(&conn, "2025-11-10,Dinner,6.00,expense,Food").unwrap();
 
-        add_transaction_to_db(&conn, "2025-11-10,Dinner,6.00,expense,Food").unwrap();
-
-        let alerts = alert_repository::get_all_alerts(&conn).unwrap();
-        assert_eq!(alerts.len(), 1);
-        assert!(alerts[0].message.contains("Budget exceeded"));
+        assert!(alert_id.is_some());
     }
 
     #[test]
     fn test_no_alert_for_income() {
         let conn = establish_test_connection().unwrap();
         budget_repository::set_budget(&conn, "Salary", &Decimal::new(100, 2)).unwrap();
+        let alert_id = add_transaction_to_db(&conn, "2025-11-10,Salary,1000.00,income,Salary").unwrap();
 
-        add_transaction_to_db(&conn, "2025-11-10,Salary,1000.00,income,Salary").unwrap();
-
-        let alerts = alert_repository::get_all_alerts(&conn).unwrap();
-        assert!(alerts.is_empty());
+        assert!(alert_id.is_none());
     }
 }
