@@ -78,3 +78,66 @@ pub fn delete_budget(conn: &Connection, category: &str) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::connection::establish_test_connection;
+    use rust_decimal::Decimal;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_set_and_get_budget() {
+        let conn = establish_test_connection().unwrap();
+        set_budget(&conn, "Food", &Decimal::from_str("100").unwrap()).unwrap();
+
+        let budget = get_budget(&conn, "Food").unwrap().unwrap();
+        assert_eq!(budget.category, "Food");
+        assert_eq!(budget.amount, Decimal::from_str("100").unwrap());
+    }
+
+    #[test]
+    fn test_get_budget_missing() {
+        let conn = establish_test_connection().unwrap();
+        let budget = get_budget(&conn, "Missing").unwrap();
+        assert!(budget.is_none());
+    }
+
+    #[test]
+    fn test_set_budget_overwrites() {
+        let conn = establish_test_connection().unwrap();
+        set_budget(&conn, "Food", &Decimal::from_str("50").unwrap()).unwrap();
+        set_budget(&conn, "Food", &Decimal::from_str("75").unwrap()).unwrap();
+
+        let budget = get_budget(&conn, "Food").unwrap().unwrap();
+        assert_eq!(budget.amount, Decimal::from_str("75").unwrap());
+    }
+
+    #[test]
+    fn test_get_all_budgets() {
+        let conn = establish_test_connection().unwrap();
+        set_budget(&conn, "Food", &Decimal::from_str("10").unwrap()).unwrap();
+        set_budget(&conn, "Travel", &Decimal::from_str("20").unwrap()).unwrap();
+
+        let budgets = get_all_budgets(&conn).unwrap();
+        assert_eq!(budgets.len(), 2);
+    }
+
+    #[test]
+    fn test_delete_budget_success() {
+        let conn = establish_test_connection().unwrap();
+        set_budget(&conn, "Food", &Decimal::from_str("10").unwrap()).unwrap();
+
+        let result = delete_budget(&conn, "Food");
+        assert!(result.is_ok());
+        assert!(get_budget(&conn, "Food").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_delete_budget_not_found() {
+        let conn = establish_test_connection().unwrap();
+        let result = delete_budget(&conn, "Missing");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not found"));
+    }
+}

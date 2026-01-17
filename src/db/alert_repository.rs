@@ -34,3 +34,21 @@ pub fn get_all_alerts(conn: &Connection) -> Result<Vec<BudgetAlert>, String> {
     }
     Ok(alerts)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::connection::establish_test_connection;
+
+    #[test]
+    fn test_add_and_list_alerts() {
+        let conn = establish_test_connection().unwrap();
+        add_alert(&conn, "Food", "Budget exceeded").unwrap();
+        add_alert(&conn, "Travel", "Budget exceeded again").unwrap();
+
+        let alerts = get_all_alerts(&conn).unwrap();
+        assert_eq!(alerts.len(), 2);
+        assert_eq!(alerts[0].category, "Travel");
+        assert_eq!(alerts[1].category, "Food");
+    }
+}

@@ -81,6 +81,9 @@ pub fn check_budget_and_alert(conn: &Connection, transaction: &Transaction) -> R
 mod tests {
     use super::*;
     use crate::db::connection::establish_test_connection;
+    use crate::db::budget_repository;
+    use crate::db::alert_repository;
+    use rust_decimal::Decimal;
 
     #[test]
     fn test_create_transaction_valid() {
@@ -142,5 +145,28 @@ mod tests {
         let result = add_transaction_to_db(&conn, input);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Invalid date format"));
+    }
+
+    #[test]
+    fn test_budget_alert_generated_on_exceed() {
+        let conn = establish_test_connection().unwrap();
+        budget_repository::set_budget(&conn, "Food", &Decimal::new(500, 2)).unwrap();
+
+        add_transaction_to_db(&conn, "2025-11-10,Dinner,6.00,expense,Food").unwrap();
+
+        let alerts = alert_repository::get_all_alerts(&conn).unwrap();
+        assert_eq!(alerts.len(), 1);
+        assert!(alerts[0].message.contains("Budget exceeded"));
+    }
+
+    #[test]
+    fn test_no_alert_for_income() {
+        let conn = establish_test_connection().unwrap();
+        budget_repository::set_budget(&conn, "Salary", &Decimal::new(100, 2)).unwrap();
+
+        add_transaction_to_db(&conn, "2025-11-10,Salary,1000.00,income,Salary").unwrap();
+
+        let alerts = alert_repository::get_all_alerts(&conn).unwrap();
+        assert!(alerts.is_empty());
     }
 }
