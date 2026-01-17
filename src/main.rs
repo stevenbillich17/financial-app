@@ -5,6 +5,7 @@ mod db;
 use operations::import::import_transactions_to_db;
 use operations::remove::remove_transaction_from_db;
 use operations::search_by_category::search_transactions_by_category_db;
+use operations::budget::{set_budget_db, increase_budget_db, decrease_budget_db, list_budgets_db, delete_budget_db};
 use std::io;
 
 use crate::operations::add::add_transaction_to_db;
@@ -17,6 +18,7 @@ pub enum UserCommands {
     Search,
     Import,
     Rules,
+    Budgets,
 }
 
 fn main() {
@@ -24,7 +26,7 @@ fn main() {
     let conn = db::connection::establish_connection().expect("Failed to connect to the database");
 
     loop {
-        println!("Please enter a command (add, import, remove, search, print, rules, exit):");
+        println!("Please enter a command (add, import, remove, search, print, rules, budgets, exit):");
 
         // read user input
         let input = match read_user_input() {
@@ -193,6 +195,109 @@ fn main() {
                     _ => println!("Invalid option. Use 'add' or 'list'."),
                 }
             }
+            UserCommands::Budgets => {
+                println!("Budgets command selected. Options: set, increase, decrease, delete, list, back");
+                let input = match read_user_input() {
+                    Ok(details) => details,
+                    Err(e) => {
+                        println!("Error reading input: {}", e);
+                        continue;
+                    }
+                };
+
+                match input.trim() {
+                    "set" => {
+                        println!("Enter budget details in format: category,amount");
+                        let budget_input = match read_user_input() {
+                            Ok(details) => details,
+                            Err(e) => {
+                                println!("Error reading budget details: {}", e);
+                                continue;
+                            }
+                        };
+                        let parts: Vec<&str> = budget_input.split(',').map(|s| s.trim()).collect();
+                        if parts.len() != 2 {
+                            println!("Invalid format. Use: category,amount");
+                            continue;
+                        }
+                        match set_budget_db(&conn, parts[0], parts[1]) {
+                            Ok(_) => println!("Budget set for category '{}'", parts[0]),
+                            Err(e) => println!("Failed to set budget: {}", e),
+                        }
+                    }
+                    "increase" => {
+                        println!("Enter budget increase in format: category,amount");
+                        let budget_input = match read_user_input() {
+                            Ok(details) => details,
+                            Err(e) => {
+                                println!("Error reading budget details: {}", e);
+                                continue;
+                            }
+                        };
+                        let parts: Vec<&str> = budget_input.split(',').map(|s| s.trim()).collect();
+                        if parts.len() != 2 {
+                            println!("Invalid format. Use: category,amount");
+                            continue;
+                        }
+                        match increase_budget_db(&conn, parts[0], parts[1]) {
+                            Ok(_) => println!("Budget increased for category '{}'", parts[0]),
+                            Err(e) => println!("Failed to increase budget: {}", e),
+                        }
+                    }
+                    "decrease" => {
+                        println!("Enter budget decrease in format: category,amount");
+                        let budget_input = match read_user_input() {
+                            Ok(details) => details,
+                            Err(e) => {
+                                println!("Error reading budget details: {}", e);
+                                continue;
+                            }
+                        };
+                        let parts: Vec<&str> = budget_input.split(',').map(|s| s.trim()).collect();
+                        if parts.len() != 2 {
+                            println!("Invalid format. Use: category,amount");
+                            continue;
+                        }
+                        match decrease_budget_db(&conn, parts[0], parts[1]) {
+                            Ok(_) => println!("Budget decreased for category '{}'", parts[0]),
+                            Err(e) => println!("Failed to decrease budget: {}", e),
+                        }
+                    }
+                    "delete" => {
+                        println!("Enter category to delete budget:");
+                        let category_input = match read_user_input() {
+                            Ok(details) => details,
+                            Err(e) => {
+                                println!("Error reading category: {}", e);
+                                continue;
+                            }
+                        };
+                        match delete_budget_db(&conn, &category_input) {
+                            Ok(_) => println!("Budget deleted for category '{}'", category_input.trim()),
+                            Err(e) => println!("Failed to delete budget: {}", e),
+                        }
+                    }
+                    "list" => {
+                        match list_budgets_db(&conn) {
+                            Ok(budgets) => {
+                                if budgets.is_empty() {
+                                    println!("No budgets defined.");
+                                } else {
+                                    println!("Budgets:");
+                                    for budget in budgets {
+                                        println!("Category: {}, Amount: {}", budget.category, budget.amount);
+                                    }
+                                }
+                            }
+                            Err(e) => println!("Failed to list budgets: {}", e),
+                        }
+                    }
+                    "back" => {
+                        continue;
+                    }
+                    _ => println!("Invalid option. Use set, increase, decrease, delete, list, or back."),
+                }
+            }
             UserCommands::Exit => {
                 println!("Exiting the application.");
                 break;
@@ -218,6 +323,7 @@ fn check_for_command(input: &str) -> UserCommands {
         "import" => UserCommands::Import,
         "search" => UserCommands::Search,
         "rules" => UserCommands::Rules,
+        "budgets" => UserCommands::Budgets,
         _ => {
             println!("No valid command found. Exiting.");
             UserCommands::Exit

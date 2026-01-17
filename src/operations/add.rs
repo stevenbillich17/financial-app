@@ -1,5 +1,5 @@
 use crate::models::transaction::{Transaction, TransactionType};
-use crate::db::repository;
+use crate::db::{repository, budget_repository, alert_repository};
 use rusqlite::Connection;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
@@ -55,6 +55,25 @@ pub fn create_transaction(input: &str) -> Result<Transaction, String> {
 pub fn add_transaction_to_db(conn: &Connection, input: &str) -> Result<(), String> {
     let transaction = create_transaction(input)?;
     repository::add_transaction(conn, &transaction)?;
+    check_budget_and_alert(conn, &transaction)?;
+    Ok(())
+}
+
+pub fn check_budget_and_alert(conn: &Connection, transaction: &Transaction) -> Result<(), String> {
+    if transaction.transaction_type != TransactionType::Expense {
+        return Ok(());
+    }
+
+    if let Some(budget) = budget_repository::get_budget(conn, &transaction.category)? {
+        let total = repository::get_total_expenses_by_category(conn, &transaction.category)?;
+        if total > budget.amount {
+            let message = format!(
+                "Budget exceeded for category '{}': budget {}, spent {}",
+                budget.category, budget.amount, total
+            );
+            alert_repository::add_alert(conn, &budget.category, &message)?;
+        }
+    }
     Ok(())
 }
 

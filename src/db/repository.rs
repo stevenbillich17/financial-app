@@ -2,6 +2,7 @@ use crate::models::transaction::{Transaction, TransactionType};
 use rusqlite::Connection;
 use chrono::NaiveDate;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::FromPrimitive;
 use std::str::FromStr;
 
 pub fn add_transaction(conn: &Connection, transaction: &Transaction) -> Result<(), String> {
@@ -108,6 +109,20 @@ pub fn search_by_category(conn: &Connection, category: &str) -> Result<Vec<Trans
     }
     
     Ok(transactions)
+}
+
+pub fn get_total_expenses_by_category(conn: &Connection, category: &str) -> Result<Decimal, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT IFNULL(SUM(CAST(amount AS REAL)), 0) FROM transactions \n             WHERE LOWER(category) = LOWER(?1) AND transaction_type = 'expense'",
+        )
+        .map_err(|e| format!("Failed to prepare statement: {}", e))?;
+
+    let total: f64 = stmt
+        .query_row([category], |row| row.get(0))
+        .map_err(|e| format!("Failed to calculate total expenses: {}", e))?;
+
+    Decimal::from_f64(total).ok_or_else(|| "Failed to convert total expenses".to_string())
 }
 
 #[cfg(test)]

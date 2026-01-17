@@ -1,4 +1,4 @@
-use super::add::create_transaction;
+use super::add::{create_transaction, check_budget_and_alert};
 use crate::db::repository;
 use crate::models::transaction::{Transaction, TransactionType};
 use chrono::NaiveDate;
@@ -48,6 +48,7 @@ pub fn import_transactions_to_db(
         }
 
         repository::add_transaction(conn, transaction)?;
+        check_budget_and_alert(conn, transaction)?;
         count += 1;
     }
     Ok(count)
