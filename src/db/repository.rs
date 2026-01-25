@@ -111,6 +111,57 @@ pub fn search_by_category(conn: &Connection, category: &str) -> Result<Vec<Trans
     Ok(transactions)
 }
 
+pub fn get_expense_transactions_in_range(
+    conn: &Connection,
+    start_date: NaiveDate,
+    end_date: NaiveDate,
+) -> Result<Vec<Transaction>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, date, description, amount, transaction_type, category \n 
+            FROM transactions \n 
+            WHERE transaction_type = 'expense' AND date >= ?1 AND date <= ?2 \n 
+            ORDER BY date ASC",
+        )
+        .map_err(|e| format!("Failed to prepare statement: {}", e))?;
+
+    let transaction_iter = stmt
+        .query_map([start_date.to_string(), end_date.to_string()], |row| {
+            let date_str: String = row.get(1)?;
+            let description_str: String = row.get(2)?;
+            let amount_str: String = row.get(3)?;
+            let transaction_type_str: String = row.get(4)?;
+            let category_str: String = row.get(5)?;
+
+            Ok(Transaction {
+                id: row.get(0)?,
+                date: NaiveDate::parse_from_str(&date_str, "%Y-%m-%d")
+                    .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
+                description: description_str,
+                amount: Decimal::from_str(&amount_str)
+                    .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
+                transaction_type: match transaction_type_str.to_lowercase().as_str() {
+                    "income" => TransactionType::Income, // Ne asteptam doar la expenses for the moment
+                    "expense" => TransactionType::Expense,
+                    _ => {
+                        return Err(rusqlite::Error::InvalidParameterName(
+                            "Invalid transaction type".to_string(),
+                        ))
+                    }
+                },
+                category: category_str,
+            })
+        })
+        .map_err(|e| format!("Failed to query transactions: {}", e))?;
+
+    let mut transactions = Vec::new();
+    for transaction in transaction_iter {
+        transactions.push(transaction.map_err(|e| format!("Failed to parse transaction: {}", e))?);
+    }
+
+    Ok(transactions)
+}
+
 pub fn get_total_expenses_by_category(conn: &Connection, category: &str) -> Result<Decimal, String> {
     let mut stmt = conn
         .prepare(

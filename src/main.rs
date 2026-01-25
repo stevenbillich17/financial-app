@@ -6,6 +6,8 @@ use operations::import::import_transactions_to_db;
 use operations::remove::remove_transaction_from_db;
 use operations::search_by_category::search_transactions_by_category_db;
 use operations::budget::{set_budget_db, increase_budget_db, decrease_budget_db, list_budgets_db, delete_budget_db};
+use operations::report::run_report;
+use chrono::NaiveDate;
 use std::io;
 
 use crate::operations::add::add_transaction_to_db;
@@ -20,6 +22,7 @@ pub enum UserCommands {
     Import,
     Rules,
     Budgets,
+    Report,
 }
 
 fn main() {
@@ -27,7 +30,7 @@ fn main() {
     let conn = db::connection::establish_connection().expect("Failed to connect to the database");
 
     loop {
-        println!("Please enter a command (add, import, remove, search, print, rules, budgets, exit):");
+        println!("Please enter a command (add, import, remove, search, print, rules, budgets, report, exit):");
 
         // read user input
         let input = match read_user_input() {
@@ -313,6 +316,44 @@ fn main() {
                     _ => println!("Invalid option. Use set, increase, decrease, delete, list, or back."),
                 }
             }
+            UserCommands::Report => {
+                println!("Report command selected. Enter date range in format: DD.MM.YYYY-DD.MM.YYYY (e.g., 10.12.2001-15.02.2022)");
+                let input = match read_user_input() {
+                    Ok(details) => details,
+                    Err(e) => {
+                        println!("Error reading input: {}", e);
+                        continue;
+                    }
+                };
+
+                let (start_str, end_str) = match input.split_once('-') {
+                    Some(parts) => parts,
+                    None => {
+                        println!("Invalid range format. Use DD.MM.YYYY-DD.MM.YYYY.");
+                        continue;
+                    }
+                };
+
+                let start_date = match NaiveDate::parse_from_str(start_str.trim(), "%d.%m.%Y") {
+                    Ok(date) => date,
+                    Err(_) => {
+                        println!("Invalid start date. Use DD.MM.YYYY.");
+                        continue;
+                    }
+                };
+
+                let end_date = match NaiveDate::parse_from_str(end_str.trim(), "%d.%m.%Y") {
+                    Ok(date) => date,
+                    Err(_) => {
+                        println!("Invalid end date. Use DD.MM.YYYY.");
+                        continue;
+                    }
+                };
+
+                if let Err(e) = run_report(&conn, start_date, end_date) {
+                    println!("Failed to generate report: {}", e);
+                }
+            }
             UserCommands::Exit => {
                 println!("Exiting the application.");
                 break;
@@ -339,6 +380,7 @@ fn check_for_command(input: &str) -> UserCommands {
         "search" => UserCommands::Search,
         "rules" => UserCommands::Rules,
         "budgets" => UserCommands::Budgets,
+        "report" => UserCommands::Report,
         _ => {
             println!("No valid command found. Exiting.");
             UserCommands::Exit

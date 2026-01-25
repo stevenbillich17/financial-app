@@ -12,3 +12,5 @@ tempfile = "3.23.0"
 rusqlite = { version = "0.37.0", features = ["bundled"] }
 quick-xml = "0.38.4"
 regex = "1.12.2"
+ratatui = "0.30.0"
+crossterm = "0.29.0"

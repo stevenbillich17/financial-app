@@ -42,6 +42,18 @@ Displays all currently stored transactions.
 
 ---
 
+### ➤ Reports (Custom Date Range)
+Generate interactive charts for any custom date range.
+- **Report**: `report`
+  - Then enter a range like: `10.12.2001-15.02.2022`
+  - The report shows:
+    - Stacked bar chart (bucketed spend over time)
+    - Pie chart (category share)
+    - Category spend table
+  - Press `q` or `Esc` to exit the report UI.
+
+---
+
 ### ➤ Import Data (CSV & OFX)
 Import multiple file formats. The system automatically detects format by file extension.
 
@@ -76,7 +88,9 @@ Business logic:
 - Creating transactions
 - Removing transactions
 - Searching
-- CSV importing
+- Importing transactions (CSV/OFX)
+- Managing categorization rules
+- Generating reports (charts + summaries)
 
 ## ▶️ Usage
 
@@ -89,6 +103,7 @@ Available commands:
 - print
 - import
 - rules
+- report
 - exit
 
 Tests cover:
@@ -97,6 +112,18 @@ Tests cover:
 - CSV importing (valid input, invalid files, binary data, invalid UTF-8, etc.)
 
 ---
+
+## 📊 Reporting
+
+The report view summarizes expenses for a custom date range and includes:
+- Stacked bar chart of spending over time (bucketed)
+- Pie chart showing category share
+- Category table with totals
+
+<p align="center">
+  <img src="assets/report.png" alt="Report IMG" />
+</p>
+
 
 ## 🧪 Testing
 
@@ -113,3 +140,5 @@ tempfile = "3.23.0"
 rusqlite = { version = "0.37.0", features = ["bundled"] }
 quick-xml = "0.38.4"
 regex = "1.12.2"
+ratatui = "0.30.0"
+crossterm = "0.29.0"
