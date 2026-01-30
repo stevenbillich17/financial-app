@@ -2,6 +2,10 @@ mod models;
 mod operations;
 mod db;
 
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use std::path::PathBuf;
+use std::process;
+
 use operations::import::import_transactions_to_db;
 use operations::remove::remove_transaction_from_db;
 use operations::search_by_category::search_transactions_by_category_db;
@@ -12,6 +16,167 @@ use std::io;
 
 use crate::operations::add::add_transaction_to_db;
 use crate::db::alert_repository;
+
+#[derive(Parser, Debug)]
+#[command(
+    name = "fino",
+    about = "A command-line tool for managing personal financial transactions",
+    arg_required_else_help = true,
+    after_help = "EXAMPLES:\n  fino add --date 2025-01-03 --description \"Coffee\" --amount 4.65 --type expense --category Food\n  fino import --file ./data.csv\n  fino import --file ./data.ofx --format ofx\n  fino report --from 2025-01-01 --to 2025-01-31\n  fino budget set --category Food --amount 250\n  fino budget increase --category Food --amount 25\n  fino budget list\n  fino search --category Food\n  fino interactive\n\nNOTES:\n  - Dates accept ISO YYYY-MM-DD (recommended). Report also accepts DD.MM.YYYY.\n  - Errors are printed to stderr; exit code is non-zero on failure."
+)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
+
+#[derive(Subcommand, Debug)]
+enum Commands {
+    /// Add a single transaction
+    Add(AddArgs),
+
+    /// Import transactions from a file (.csv or .ofx)
+    Import(ImportArgs),
+
+    /// Show an interactive report UI for a date range
+    Report(ReportArgs),
+
+    /// Manage category budgets
+    Budget(BudgetArgsTop),
+
+    /// Search transactions by category
+    Search(SearchArgs),
+
+    /// Launch the legacy interactive prompt-driven mode
+    Interactive,
+
+    /// Print all transactions
+    Print,
+
+    /// Remove a transaction by ID
+    Remove(RemoveArgs),
+}
+
+#[derive(Args, Debug)]
+struct AddArgs {
+    /// Transaction date (YYYY-MM-DD)
+    #[arg(long)]
+    date: String,
+
+    /// Transaction description (must not contain commas)
+    #[arg(long)]
+    description: String,
+
+    /// Transaction amount (decimal)
+    #[arg(long)]
+    amount: String,
+
+    /// Transaction type
+    #[arg(long = "type", value_enum)]
+    transaction_type: CliTransactionType,
+
+    /// Transaction category (must not contain commas)
+    #[arg(long)]
+    category: String,
+}
+
+#[derive(Copy, Clone, Debug, ValueEnum)]
+enum CliTransactionType {
+    Income,
+    Expense,
+}
+
+impl CliTransactionType {
+    fn as_str(self) -> &'static str {
+        match self {
+            CliTransactionType::Income => "income",
+            CliTransactionType::Expense => "expense",
+        }
+    }
+}
+
+#[derive(Args, Debug)]
+struct ImportArgs {
+    /// Path to the import file
+    #[arg(long)]
+    file: PathBuf,
+
+    /// Override the detected format
+    #[arg(long, value_enum)]
+    format: Option<CliImportFormat>,
+}
+
+#[derive(Copy, Clone, Debug, ValueEnum)]
+enum CliImportFormat {
+    Csv,
+    Ofx,
+}
+
+#[derive(Args, Debug)]
+struct ReportArgs {
+    /// Start date (YYYY-MM-DD recommended; DD.MM.YYYY also accepted)
+    #[arg(long)]
+    from: String,
+
+    /// End date (YYYY-MM-DD recommended; DD.MM.YYYY also accepted)
+    #[arg(long)]
+    to: String,
+}
+
+#[derive(Args, Debug)]
+struct SearchArgs {
+    /// Category name
+    #[arg(long)]
+    category: String,
+}
+
+#[derive(Args, Debug)]
+struct RemoveArgs {
+    /// Transaction ID (UUID / string)
+    #[arg(long)]
+    id: String,
+}
+
+#[derive(Args, Debug)]
+struct BudgetArgsTop {
+    #[command(subcommand)]
+    command: BudgetCommand,
+}
+
+#[derive(Subcommand, Debug)]
+enum BudgetCommand {
+    /// Set a budget for a category
+    Set(BudgetSetArgs),
+    /// Increase a category budget
+    Increase(BudgetChangeArgs),
+    /// Decrease a category budget
+    Decrease(BudgetChangeArgs),
+    /// Delete a category budget
+    Delete(BudgetDeleteArgs),
+    /// List all budgets
+    List,
+}
+
+#[derive(Args, Debug)]
+struct BudgetSetArgs {
+    #[arg(long)]
+    category: String,
+    #[arg(long)]
+    amount: String,
+}
+
+#[derive(Args, Debug)]
+struct BudgetChangeArgs {
+    #[arg(long)]
+    category: String,
+    #[arg(long)]
+    amount: String,
+}
+
+#[derive(Args, Debug)]
+struct BudgetDeleteArgs {
+    #[arg(long)]
+    category: String,
+}
 
 pub enum UserCommands {
     Add,
@@ -26,13 +191,178 @@ pub enum UserCommands {
 }
 
 fn main() {
-    println!("Welcome to the transaction manager!");
-    let conn = db::connection::establish_connection().expect("Failed to connect to the database");
+    let cli = Cli::parse();
 
+    let conn = match db::connection::establish_connection() {
+        Ok(conn) => conn,
+        Err(e) => {
+            eprintln!("Failed to connect to the database: {}", e);
+            process::exit(1);
+        }
+    };
+
+    let exit_code = match run_command(&conn, cli.command) {
+        Ok(()) => 0,
+        Err(message) => {
+            eprintln!("{}", message);
+            1
+        }
+    };
+
+    process::exit(exit_code);
+}
+
+fn run_command(conn: &rusqlite::Connection, cmd: Commands) -> Result<(), String> {
+    match cmd {
+        Commands::Add(args) => {
+            if args.description.contains(',') {
+                return Err("Description must not contain commas (',') because the current parser is comma-separated.".to_string());
+            }
+            if args.category.contains(',') {
+                return Err("Category must not contain commas (',') because the current parser is comma-separated.".to_string());
+            }
+
+            let raw_input = format!(
+                "{},{},{},{},{}",
+                args.date,
+                args.description,
+                args.amount,
+                args.transaction_type.as_str(),
+                args.category
+            );
+
+            let alert_id = add_transaction_to_db(conn, &raw_input)?;
+            println!("Transaction added successfully.");
+            if let Some(alert_id) = alert_id {
+                let alerts = alert_repository::get_alerts_by_ids(conn, &[alert_id]).unwrap_or_default();
+                if !alerts.is_empty() {
+                    println!("Alerts generated:");
+                    for alert in alerts {
+                        println!("[{}] {}", alert.category, alert.message);
+                    }
+                }
+            }
+            Ok(())
+        }
+        Commands::Import(args) => {
+            let path_str = args
+                .file
+                .to_str()
+                .ok_or_else(|| "Invalid file path (non-UTF8).".to_string())?;
+
+            let format = match args.format {
+                Some(CliImportFormat::Csv) => operations::import::ImportFormat::CSV,
+                Some(CliImportFormat::Ofx) => operations::import::ImportFormat::OFX,
+                None => detect_import_format(path_str)?,
+            };
+
+            let (count, alert_ids) = import_transactions_to_db(conn, format, path_str)?;
+            println!("Successfully imported {} transactions.", count);
+            if !alert_ids.is_empty() {
+                let alerts = alert_repository::get_alerts_by_ids(conn, &alert_ids).unwrap_or_default();
+                if !alerts.is_empty() {
+                    println!("Alerts generated during import:");
+                    for alert in alerts {
+                        println!("[{}] {}", alert.category, alert.message);
+                    }
+                }
+            }
+            Ok(())
+        }
+        Commands::Report(args) => {
+            let start = parse_cli_date(&args.from)?;
+            let end = parse_cli_date(&args.to)?;
+            run_report(conn, start, end)
+        }
+        Commands::Budget(budget) => match budget.command {
+            BudgetCommand::Set(args) => {
+                set_budget_db(conn, &args.category, &args.amount)?;
+                println!("Budget set for category '{}'", args.category.trim());
+                Ok(())
+            }
+            BudgetCommand::Increase(args) => {
+                increase_budget_db(conn, &args.category, &args.amount)?;
+                println!("Budget increased for category '{}'", args.category.trim());
+                Ok(())
+            }
+            BudgetCommand::Decrease(args) => {
+                decrease_budget_db(conn, &args.category, &args.amount)?;
+                println!("Budget decreased for category '{}'", args.category.trim());
+                Ok(())
+            }
+            BudgetCommand::Delete(args) => {
+                delete_budget_db(conn, &args.category)?;
+                println!("Budget deleted for category '{}'", args.category.trim());
+                Ok(())
+            }
+            BudgetCommand::List => {
+                let budgets = list_budgets_db(conn)?;
+                if budgets.is_empty() {
+                    println!("No budgets defined.");
+                } else {
+                    println!("Budgets:");
+                    for budget in budgets {
+                        println!("Category: {}, Amount: {}", budget.category, budget.amount);
+                    }
+                }
+                Ok(())
+            }
+        },
+        Commands::Search(args) => {
+            let transactions = search_transactions_by_category_db(conn, &args.category)?;
+            if transactions.is_empty() {
+                println!("No transactions found for category: {}", args.category);
+            } else {
+                println!("Transactions found for category '{}':", args.category);
+                for transaction in transactions {
+                    println!("{:?}", transaction);
+                }
+            }
+            Ok(())
+        }
+        Commands::Interactive => {
+            println!("Welcome to FINO interactive mode!");
+            run_interactive(conn);
+            Ok(())
+        }
+        Commands::Print => {
+            println!("Current Transactions:");
+            let list = db::repository::get_all_transactions(conn).unwrap_or_else(|_| vec![]);
+            for transaction in &list {
+                println!("{:?}", transaction);
+            }
+            Ok(())
+        }
+        Commands::Remove(args) => {
+            remove_transaction_from_db(conn, &args.id)?;
+            println!("Transaction removed successfully.");
+            Ok(())
+        }
+    }
+}
+
+fn detect_import_format(path: &str) -> Result<operations::import::ImportFormat, String> {
+    let lower = path.to_lowercase();
+    if lower.ends_with(".ofx") {
+        Ok(operations::import::ImportFormat::OFX)
+    } else if lower.ends_with(".csv") {
+        Ok(operations::import::ImportFormat::CSV)
+    } else {
+        Err("Unrecognized file format. Use --format csv|ofx or provide a .csv/.ofx file.".to_string())
+    }
+}
+
+fn parse_cli_date(input: &str) -> Result<NaiveDate, String> {
+    let s = input.trim();
+    NaiveDate::parse_from_str(s, "%Y-%m-%d")
+        .or_else(|_| NaiveDate::parse_from_str(s, "%d.%m.%Y"))
+        .map_err(|_| format!("Invalid date '{}'. Use YYYY-MM-DD (recommended) or DD.MM.YYYY.", s))
+}
+
+fn run_interactive(conn: &rusqlite::Connection) {
     loop {
         println!("Please enter a command (add, import, remove, search, print, rules, budgets, report, exit):");
 
-        // read user input
         let input = match read_user_input() {
             Ok(cmd) => cmd,
             Err(e) => {
@@ -44,6 +374,7 @@ fn main() {
         if parts.is_empty() {
             continue;
         }
+
         let command = check_for_command(parts[0]);
         match command {
             UserCommands::Add => {
@@ -55,12 +386,12 @@ fn main() {
                         continue;
                     }
                 };
-                match add_transaction_to_db(&conn, &input) {
+                match add_transaction_to_db(conn, &input) {
                     Ok(alert_id) => {
                         println!("Transaction added successfully!");
                         if let Some(alert_id) = alert_id {
                             println!("Alerts generated:");
-                            let alerts = alert_repository::get_alerts_by_ids(&conn, &[alert_id]).unwrap_or_default();
+                            let alerts = alert_repository::get_alerts_by_ids(conn, &[alert_id]).unwrap_or_default();
                             for alert in alerts {
                                 println!("[{}] {}", alert.category, alert.message);
                             }
@@ -81,7 +412,7 @@ fn main() {
                         continue;
                     }
                 };
-                
+
                 let format = if input.to_lowercase().ends_with(".ofx") {
                     Some(operations::import::ImportFormat::OFX)
                 } else if input.to_lowercase().ends_with(".csv") {
@@ -98,17 +429,13 @@ fn main() {
                     }
                 };
 
-                let import_result = import_transactions_to_db(
-                    &conn,
-                    format,
-                    &input,
-                );
+                let import_result = import_transactions_to_db(conn, format, &input);
                 match import_result {
                     Ok((number_of_imported_transactions, alert_ids)) => {
                         println!("Successfully imported {} transactions.", number_of_imported_transactions);
                         if !alert_ids.is_empty() {
                             println!("Alerts generated during import:");
-                            let alerts = alert_repository::get_alerts_by_ids(&conn, &alert_ids).unwrap_or_default();
+                            let alerts = alert_repository::get_alerts_by_ids(conn, &alert_ids).unwrap_or_default();
                             for alert in alerts {
                                 println!("[{}] {}", alert.category, alert.message);
                             }
@@ -126,7 +453,7 @@ fn main() {
                         continue;
                     }
                 };
-                let remove_result = remove_transaction_from_db(&conn, &input);
+                let remove_result = remove_transaction_from_db(conn, &input);
                 match remove_result {
                     Ok(_) => println!("Transaction removed successfully."),
                     Err(err) => println!("Error: {}", err),
@@ -134,9 +461,9 @@ fn main() {
             }
             UserCommands::Print => {
                 println!("Current Transactions:");
-                let list = db::repository::get_all_transactions(&conn).unwrap_or_else(|_| vec![]);  
+                let list = db::repository::get_all_transactions(conn).unwrap_or_else(|_| vec![]);
                 for transaction in &list {
-                    println!("{:?}", transaction); // Print each transaction on a new line
+                    println!("{:?}", transaction);
                 }
             }
             UserCommands::Search => {
@@ -148,7 +475,7 @@ fn main() {
                         continue;
                     }
                 };
-                let results = search_transactions_by_category_db(&conn, &input);
+                let results = search_transactions_by_category_db(conn, &input);
                 let transactions = match results {
                     Ok(transactions) => transactions,
                     Err(err) => {
@@ -168,13 +495,13 @@ fn main() {
             UserCommands::Rules => {
                 println!("Rules command selected. Enter 'add' to create a new rule or 'list' to view existing rules:");
                 let input = match read_user_input() {
-                     Ok(details) => details,
-                     Err(e) => {
-                         println!("Error reading input: {}", e);
-                         continue;
-                     }
+                    Ok(details) => details,
+                    Err(e) => {
+                        println!("Error reading input: {}", e);
+                        continue;
+                    }
                 };
-                
+
                 match input.trim() {
                     "add" => {
                         println!("Enter rule details in format: pattern category (e.g., 'Uber Transport')");
@@ -185,30 +512,31 @@ fn main() {
                                 continue;
                             }
                         };
-                        
+
                         if let Some((pattern, category)) = rule_input.rsplit_once(' ') {
-                             match db::rule_repository::add_rule(&conn, pattern.trim(), category.trim()) {
-                                 Ok(_) => println!("Rule added: '{}' -> '{}'", pattern.trim(), category.trim()),
-                                 Err(e) => println!("Failed to add rule: {}", e),
-                             }
+                            match db::rule_repository::add_rule(conn, pattern.trim(), category.trim()) {
+                                Ok(_) => println!("Rule added: '{}' -> '{}'", pattern.trim(), category.trim()),
+                                Err(e) => println!("Failed to add rule: {}", e),
+                            }
                         } else {
-                             println!("Invalid format. Please use: <regex_pattern> <category>");
+                            println!("Invalid format. Please use: <regex_pattern> <category>");
                         }
-                    },
-                    "list" => {
-                        match db::rule_repository::get_all_rules(&conn) {
-                            Ok(rules) => {
-                                if rules.is_empty() {
-                                    println!("No rules defined.");
-                                } else {
-                                    println!("Categorization Rules:");
-                                    for rule in rules {
-                                        println!("ID: {}, Pattern: '{}' -> Category: '{}'", rule.id, rule.pattern, rule.category);
-                                    }
+                    }
+                    "list" => match db::rule_repository::get_all_rules(conn) {
+                        Ok(rules) => {
+                            if rules.is_empty() {
+                                println!("No rules defined.");
+                            } else {
+                                println!("Categorization Rules:");
+                                for rule in rules {
+                                    println!(
+                                        "ID: {}, Pattern: '{}' -> Category: '{}'",
+                                        rule.id, rule.pattern, rule.category
+                                    );
                                 }
-                            },
-                            Err(e) => println!("Failed to fetch rules: {}", e),
+                            }
                         }
+                        Err(e) => println!("Failed to fetch rules: {}", e),
                     },
                     _ => println!("Invalid option. Use 'add' or 'list'."),
                 }
@@ -238,7 +566,7 @@ fn main() {
                             println!("Invalid format. Use: category,amount");
                             continue;
                         }
-                        match set_budget_db(&conn, parts[0], parts[1]) {
+                        match set_budget_db(conn, parts[0], parts[1]) {
                             Ok(_) => println!("Budget set for category '{}'", parts[0]),
                             Err(e) => println!("Failed to set budget: {}", e),
                         }
@@ -257,7 +585,7 @@ fn main() {
                             println!("Invalid format. Use: category,amount");
                             continue;
                         }
-                        match increase_budget_db(&conn, parts[0], parts[1]) {
+                        match increase_budget_db(conn, parts[0], parts[1]) {
                             Ok(_) => println!("Budget increased for category '{}'", parts[0]),
                             Err(e) => println!("Failed to increase budget: {}", e),
                         }
@@ -276,7 +604,7 @@ fn main() {
                             println!("Invalid format. Use: category,amount");
                             continue;
                         }
-                        match decrease_budget_db(&conn, parts[0], parts[1]) {
+                        match decrease_budget_db(conn, parts[0], parts[1]) {
                             Ok(_) => println!("Budget decreased for category '{}'", parts[0]),
                             Err(e) => println!("Failed to decrease budget: {}", e),
                         }
@@ -290,29 +618,25 @@ fn main() {
                                 continue;
                             }
                         };
-                        match delete_budget_db(&conn, &category_input) {
+                        match delete_budget_db(conn, &category_input) {
                             Ok(_) => println!("Budget deleted for category '{}'", category_input.trim()),
                             Err(e) => println!("Failed to delete budget: {}", e),
                         }
                     }
-                    "list" => {
-                        match list_budgets_db(&conn) {
-                            Ok(budgets) => {
-                                if budgets.is_empty() {
-                                    println!("No budgets defined.");
-                                } else {
-                                    println!("Budgets:");
-                                    for budget in budgets {
-                                        println!("Category: {}, Amount: {}", budget.category, budget.amount);
-                                    }
+                    "list" => match list_budgets_db(conn) {
+                        Ok(budgets) => {
+                            if budgets.is_empty() {
+                                println!("No budgets defined.");
+                            } else {
+                                println!("Budgets:");
+                                for budget in budgets {
+                                    println!("Category: {}, Amount: {}", budget.category, budget.amount);
                                 }
                             }
-                            Err(e) => println!("Failed to list budgets: {}", e),
                         }
-                    }
-                    "back" => {
-                        continue;
-                    }
+                        Err(e) => println!("Failed to list budgets: {}", e),
+                    },
+                    "back" => continue,
                     _ => println!("Invalid option. Use set, increase, decrease, delete, list, or back."),
                 }
             }
@@ -350,7 +674,7 @@ fn main() {
                     }
                 };
 
-                if let Err(e) = run_report(&conn, start_date, end_date) {
+                if let Err(e) = run_report(conn, start_date, end_date) {
                     println!("Failed to generate report: {}", e);
                 }
             }

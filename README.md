@@ -94,17 +94,55 @@ Business logic:
 
 ## ▶️ Usage
 
-Run the interactive CLI: `cargo run`
+FINO now uses a subcommand-based CLI by default:
 
-Available commands:
-- add
-- remove
-- search
-- print
-- import
-- rules
-- report
-- exit
+- Show help: `cargo run -- --help`
+- Run a command: `cargo run -- <command> [options]`
+
+### Subcommands
+
+Add a transaction:
+
+`fino add --date YYYY-MM-DD --description "..." --amount <number> --type income|expense --category "..."`
+
+Import transactions:
+
+- `fino import --file <path>` (auto-detects `.csv` / `.ofx`)
+- `fino import --file <path> --format csv|ofx`
+
+Report (interactive UI):
+
+`fino report --from YYYY-MM-DD --to YYYY-MM-DD`
+
+Budget management:
+
+- `fino budget set --category "..." --amount <number>`
+- `fino budget increase --category "..." --amount <number>`
+- `fino budget decrease --category "..." --amount <number>`
+- `fino budget list`
+- `fino budget delete --category "..."`
+
+Search:
+
+`fino search --category "..."`
+
+<p align="center">
+  <img src="assets/category_search_cmd_run_example.png" alt="FINO Search" width="220"/>
+</p>
+
+
+Other utility commands:
+
+- `fino print`
+- `fino remove --id <transaction-id>`
+
+### Legacy interactive mode
+
+The old prompt-driven workflow is still available as an opt-in mode:
+
+`fino interactive`
+
+This mode supports the original commands: `add`, `remove`, `search`, `print`, `import`, `rules`, `report`, `exit`.
 
 Tests cover:
 - Transaction creation validation
@@ -142,3 +180,4 @@ quick-xml = "0.38.4"
 regex = "1.12.2"
 ratatui = "0.30.0"
 crossterm = "0.29.0"
+clap = { version = "4.5.56", features = ["derive"] }
