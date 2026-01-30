@@ -31,50 +31,30 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Add a single transaction
     Add(AddArgs),
-
-    /// Import transactions from a file (.csv or .ofx)
     Import(ImportArgs),
-
-    /// Show an interactive report UI for a date range
     Report(ReportArgs),
-
-    /// Manage category budgets
     Budget(BudgetArgsTop),
-
-    /// Search transactions by category
     Search(SearchArgs),
-
-    /// Launch the legacy interactive prompt-driven mode
     Interactive,
-
-    /// Print all transactions
     Print,
-
-    /// Remove a transaction by ID
     Remove(RemoveArgs),
 }
 
 #[derive(Args, Debug)]
 struct AddArgs {
-    /// Transaction date (YYYY-MM-DD)
     #[arg(long)]
     date: String,
 
-    /// Transaction description (must not contain commas)
     #[arg(long)]
     description: String,
 
-    /// Transaction amount (decimal)
     #[arg(long)]
     amount: String,
 
-    /// Transaction type
     #[arg(long = "type", value_enum)]
     transaction_type: CliTransactionType,
 
-    /// Transaction category (must not contain commas)
     #[arg(long)]
     category: String,
 }
@@ -96,11 +76,9 @@ impl CliTransactionType {
 
 #[derive(Args, Debug)]
 struct ImportArgs {
-    /// Path to the import file
     #[arg(long)]
     file: PathBuf,
 
-    /// Override the detected format
     #[arg(long, value_enum)]
     format: Option<CliImportFormat>,
 }
@@ -113,25 +91,21 @@ enum CliImportFormat {
 
 #[derive(Args, Debug)]
 struct ReportArgs {
-    /// Start date (YYYY-MM-DD recommended; DD.MM.YYYY also accepted)
     #[arg(long)]
     from: String,
 
-    /// End date (YYYY-MM-DD recommended; DD.MM.YYYY also accepted)
     #[arg(long)]
     to: String,
 }
 
 #[derive(Args, Debug)]
 struct SearchArgs {
-    /// Category name
     #[arg(long)]
     category: String,
 }
 
 #[derive(Args, Debug)]
 struct RemoveArgs {
-    /// Transaction ID (UUID / string)
     #[arg(long)]
     id: String,
 }
@@ -144,15 +118,10 @@ struct BudgetArgsTop {
 
 #[derive(Subcommand, Debug)]
 enum BudgetCommand {
-    /// Set a budget for a category
     Set(BudgetSetArgs),
-    /// Increase a category budget
     Increase(BudgetChangeArgs),
-    /// Decrease a category budget
     Decrease(BudgetChangeArgs),
-    /// Delete a category budget
     Delete(BudgetDeleteArgs),
-    /// List all budgets
     List,
 }
 

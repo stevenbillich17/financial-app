@@ -127,7 +127,7 @@ Search:
 `fino search --category "..."`
 
 <p align="center">
-  <img src="assets/category_search_cmd_run_example.png" alt="FINO Search" width="220"/>
+  <img src="assets/category_search_cmd_run_example.png" alt="FINO Search" />
 </p>
 
 
