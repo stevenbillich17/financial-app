@@ -12,5 +12,3 @@ Cargo.lock
 **/tests/output/
 
 financial_app.db
-
-/test/data.csv

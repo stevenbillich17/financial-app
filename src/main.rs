@@ -15,7 +15,7 @@ use operations::browse::run_browse;
 use chrono::NaiveDate;
 use std::io;
 
-use crate::operations::add::add_transaction_to_db;
+use crate::operations::add::{add_transaction_to_db, add_transaction_to_db_with_id};
 use crate::db::alert_repository;
 
 #[derive(Parser, Debug)]
@@ -203,8 +203,8 @@ fn run_command(conn: &rusqlite::Connection, cmd: Commands) -> Result<(), String>
                 args.category
             );
 
-            let alert_id = add_transaction_to_db(conn, &raw_input)?;
-            println!("Transaction added successfully.");
+            let (transaction_id, alert_id) = add_transaction_to_db_with_id(conn, &raw_input)?;
+            println!("Transaction added successfully. ID: {}", transaction_id);
             if let Some(alert_id) = alert_id {
                 let alerts = alert_repository::get_alerts_by_ids(conn, &[alert_id]).unwrap_or_default();
                 if !alerts.is_empty() {

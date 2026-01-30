@@ -2,164 +2,149 @@
   <img src="assets/fino.png" alt="FINO Logo" width="220"/>
 </p>
 
-# What is Fino?
-
-A command-line tool for managing personal financial transactions.  
-This project provides a lightweight, terminal-based interface for recording, searching, and importing financial data.  
-It is designed with a modular architecture that makes it easy to extend with new features over time.
-
----
-
-## 🚀 Current Features
-
-### ➤ Add Transactions  
-Create a new transaction manually. The system validates:
-- Date format (`YYYY-MM-DD`)
-- Decimal amount
-- Transaction type (`income` or `expense`)
-- Description/category length limits
-
-### ➤ Manage Categorization Rules (New!)
-Automate your transaction sorting by defining regex-based rules.
-- **Add Rule**: `rules add <regex_pattern> <category>`
-  - Example: `rules add ^Uber.* Transport` automatically categorizes "Uber Trip" as "Transport".
-- **List Rules**: `rules list` displays all active categorization rules.
-
----
-
-### ➤ Remove Transactions  
-Remove an entry by providing its UUID.
-
----
-
-### ➤ Search Transactions  
-Search for transactions by category.
-
----
-
-### ➤ Print All Transactions  
-Displays all currently stored transactions.
-
----
-
-### ➤ Reports (Custom Date Range)
-Generate interactive charts for any custom date range.
-- **Report**: `report`
-  - Then enter a range like: `10.12.2001-15.02.2022`
-  - The report shows:
-    - Stacked bar chart (bucketed spend over time)
-    - Pie chart (category share)
-    - Category spend table
-  - Press `q` or `Esc` to exit the report UI.
-
----
-
-### ➤ Import Data (CSV & OFX)
-Import multiple file formats. The system automatically detects format by file extension.
-
-#### 1. CSV Import
-Standard comma-separated values.
-**Example:**
-```csv
-2025-01-03,Coffee,-4.65,expense,Food
-2025-01-04,Uber,-12.30,expense,Transport
-2025-01-05,Salary,2500.00,income,Salary
-2025-01-07,Groceries,-54.12,expense,Supermarket
-```
-#### 2. OFX Import
-Supports Open Financial Exchange files (standard for bank exports).
-Parses DTPOSTED, TRNAMT, NAME, MEMO, and CATEGORY tags.
-Auto-Categorization:
-- Uses the <CATEGORY> tag from the file if present.
-- If missing, applies your Categorization Rules based on the description.
-- Defaults to Uncategorized.
-
-## 🧱 Architecture Overview
-
-The project uses a clean modular organization:
-
-### `models/`
-Contains pure data structures:
-- `Transaction`
-- `TransactionType`
-
-### `operations/`
-Business logic:
-- Creating transactions
-- Removing transactions
-- Searching
-- Importing transactions (CSV/OFX)
-- Managing categorization rules
-- Generating reports (charts + summaries)
-
-## ▶️ Usage
-
-FINO now uses a subcommand-based CLI by default:
-
-- Show help: `cargo run -- --help`
-- Run a command: `cargo run -- <command> [options]`
-
-### Subcommands
-
-Add a transaction:
-
-`fino add --date YYYY-MM-DD --description "..." --amount <number> --type income|expense --category "..."`
-
-Import transactions:
-
-- `fino import --file <path>` (auto-detects `.csv` / `.ofx`)
-- `fino import --file <path> --format csv|ofx`
-
-Report (interactive UI):
-
-`fino report --from YYYY-MM-DD --to YYYY-MM-DD`
-
-Budget management:
-
-- `fino budget set --category "..." --amount <number>`
-- `fino budget increase --category "..." --amount <number>`
-- `fino budget decrease --category "..." --amount <number>`
-- `fino budget list`
-- `fino budget delete --category "..."`
-
-Search:
-
-`fino search --category "..."`
-
 <p align="center">
-  <img src="assets/category_search_cmd_run_example.png" alt="FINO Search" />
+  <img src="assets/cmd_tool.png" alt="Fino CLI" />
 </p>
 
+# Fino
 
-Other utility commands:
+Fino is a local-first command-line app for tracking transactions (income/expense), importing bank exports, and exploring spending in the terminal.
 
-- `fino print`
-- `fino remove --id <transaction-id>`
+It stores everything in a single SQLite file created in the working directory: `financial_app.db`.
 
-### Legacy interactive mode
-
-The old prompt-driven workflow is still available as an opt-in mode:
-
-`fino interactive`
-
-This mode supports the original commands: `add`, `remove`, `search`, `print`, `import`, `rules`, `report`, `exit`.
-
-Tests cover:
-- Transaction creation validation
-- Removing transactions
-- CSV importing (valid input, invalid files, binary data, invalid UTF-8, etc.)
+More detail:
+- Architecture: `docs/ARHITECTURE.md`
+- Decisions: `docs/DECISION.md`
 
 ---
 
-## 📊 Reporting
+## Features
 
-The report view summarizes expenses for a custom date range and includes:
-- Stacked bar chart of spending over time (bucketed)
-- Pie chart showing category share
-- Category table with totals
+- Add/Remove/Search/Print transactions (UUID-backed)
+- Import `.csv` and `.ofx`
+- Optional categorization via regex rules (applied on import when category is missing/`Uncategorized`)
+- Category budgets + budget-exceeded alerts
+- Terminal UIs: `report` (charts) and `browse` (viewer)
+
+## Docs
+
+- `docs/ARHITECTURE.md` (how the system works)
+- `docs/DECISION.md` (why key choices were made)
+
+## Usage
+
+```bash
+cargo run -- --help
+cargo run -- <command> [options]
+```
+
+Common commands:
+
+```bash
+fino add --date 2025-01-03 --description "Coffee" --amount 4.65 --type expense --category Food
+fino import --file ./test/data.csv
+fino import --file ./my_export.ofx --format ofx
+fino budget set --category Food --amount 250
+fino search --category Food
+fino report --from 2025-01-01 --to 2025-01-31
+fino browse   # alias: fino tui
+```
+
+## Examples (with output)
+
+### Add transaction
+
+```bash
+fino add --date 2025-01-03 --description "Coffee" --amount 4.65 --type expense --category Food
+```
+
+```text
+Transaction added successfully. ID: 550e8400-e29b-41d4-a716-446655440000
+```
+
+### Import (CSV)
+
+```bash
+fino import --file ./test/data.csv
+```
+
+```text
+Successfully imported 45 transactions.
+```
+
+CSV format (no header, 5 columns):
+
+```csv
+YYYY-MM-DD,Description,Amount,income|expense,Category
+```
+
+### Import (OFX)
+
+```bash
+fino import --file ./my_export.ofx --format ofx
+```
+
+```text
+Successfully imported 12 transactions.
+```
+
+### Categorization behavior
+
+- If the imported category is empty, it becomes `Uncategorized`.
+- If category is `Uncategorized`/empty/`null`, Fino applies the first matching regex rule based on the transaction description.
+- If no rule matches, the transaction stays `Uncategorized`.
+
+Rules are currently managed via the legacy interactive mode:
+
+```bash
+fino interactive
+```
+
+In the prompt:
+
+```text
+rules
+add
+^Uber.* Transport
+```
+
+After importing transactions with an empty category, verify categorization via search:
+
+```bash
+fino search --category Transport
+```
+
+### Budget alert
+
+```bash
+fino budget set --category Food --amount 10
+fino add --date 2025-01-04 --description "Dinner" --amount 15 --type expense --category Food
+```
+
+```text
+Transaction added successfully. ID: 550e8400-e29b-41d4-a716-446655440000
+Alerts generated:
+[Food] Budget exceeded for category 'Food': budget 10, spent 15
+```
+
+Alerts can also appear during import:
+
+```text
+Successfully imported 12 transactions.
+Alerts generated during import:
+[Food] Budget exceeded for category 'Food': budget 250, spent 312.34
+```
+
+### Report
+
+```bash
+fino report --from 2025-01-01 --to 2025-01-31
+```
+
+This opens an interactive report UI (stacked bar chart + pie chart + category totals). Press `q` or `Esc` to exit.
 
 <p align="center">
-  <img src="assets/report.png" alt="Report IMG" />
+  <img src="assets/report.png" alt="Report" />
 </p>
 
 
@@ -167,17 +152,7 @@ The report view summarizes expenses for a custom date range and includes:
 
 Run the test suite: `cargo test`
 
-## 📦 Dependencies
+## Dependencies
 
 ```toml
-chrono = "0.4.42"
-rust_decimal = "1.39.0"
-uuid = { version = "1", features = ["v4"] }
-csv = "1.4.0"
-tempfile = "3.23.0"
-rusqlite = { version = "0.37.0", features = ["bundled"] }
-quick-xml = "0.38.4"
-regex = "1.12.2"
-ratatui = "0.30.0"
-crossterm = "0.29.0"
-clap = { version = "4.5.56", features = ["derive"] }
+# See Cargo.toml for the full list

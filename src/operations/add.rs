@@ -59,6 +59,17 @@ pub fn add_transaction_to_db(conn: &Connection, input: &str) -> Result<Option<i3
     Ok(alert_id)
 }
 
+pub fn add_transaction_to_db_with_id(
+    conn: &Connection,
+    input: &str,
+) -> Result<(String, Option<i32>), String> {
+    let transaction = create_transaction(input)?;
+    let id = transaction.id.clone();
+    repository::add_transaction(conn, &transaction)?;
+    let alert_id = check_budget_and_alert(conn, &transaction)?;
+    Ok((id, alert_id))
+}
+
 pub fn check_budget_and_alert(conn: &Connection, transaction: &Transaction) -> Result<Option<i32>, String> {
     if transaction.transaction_type != TransactionType::Expense {
         return Ok(None);
