@@ -52,6 +52,12 @@ fino browse   # alias: fino tui
 
 ## Examples (with output)
 
+### Browse
+
+<p align="center">
+  <img src="assets/fino_browse.png" alt="Fino CLI" />
+</p>
+
 ### Add transaction
 
 ```bash
@@ -88,6 +94,11 @@ fino import --file ./my_export.ofx --format ofx
 Successfully imported 12 transactions.
 ```
 
+### Search
+<p align="center">
+  <img src="assets/category_search_cmd_run_example.png" alt="Fino CLI" />
+</p>
+
 ### Categorization behavior
 
 - If the imported category is empty, it becomes `Uncategorized`.
@@ -106,12 +117,6 @@ In the prompt:
 rules
 add
 ^Uber.* Transport
-```
-
-After importing transactions with an empty category, verify categorization via search:
-
-```bash
-fino search --category Transport
 ```
 
 ### Budget alert
