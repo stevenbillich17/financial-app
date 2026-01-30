@@ -485,7 +485,7 @@ fn render_header(frame: &mut ratatui::Frame, area: Rect, state: &BrowseState) {
 fn render_footer(frame: &mut ratatui::Frame, area: Rect, state: &BrowseState) {
     let hint = match state.mode {
         Mode::List => "↑/↓ move  PgUp/PgDn page  Enter details  c category  d dates  t type  s sort  r refresh  x clear  q/Esc exit",
-        Mode::Details => "Esc/q/b back",
+        Mode::Details => "Esc/q/ -> quits the app === b -> back",
         Mode::Input(_) => "Type, Enter apply, Esc cancel",
     };
 
