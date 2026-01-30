@@ -7,7 +7,7 @@ use crossterm::{
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
 use ratatui::{
-    prelude::{Alignment, Color, Constraint, Direction, Layout, Rect, Style, Stylize},
+    prelude::{Alignment, Color, Constraint, Direction, Layout, Rect, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
 };

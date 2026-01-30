@@ -1,13 +1,13 @@
 use rust_decimal::Decimal;
 use chrono::NaiveDate;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum TransactionType {
     Income,
     Expense
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Transaction {
     pub id: String,
     pub date: NaiveDate,

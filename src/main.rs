@@ -11,6 +11,7 @@ use operations::remove::remove_transaction_from_db;
 use operations::search_by_category::search_transactions_by_category_db;
 use operations::budget::{set_budget_db, increase_budget_db, decrease_budget_db, list_budgets_db, delete_budget_db};
 use operations::report::run_report;
+use operations::browse::run_browse;
 use chrono::NaiveDate;
 use std::io;
 
@@ -22,7 +23,7 @@ use crate::db::alert_repository;
     name = "fino",
     about = "A command-line tool for managing personal financial transactions",
     arg_required_else_help = true,
-    after_help = "EXAMPLES:\n  fino add --date 2025-01-03 --description \"Coffee\" --amount 4.65 --type expense --category Food\n  fino import --file ./data.csv\n  fino import --file ./data.ofx --format ofx\n  fino report --from 2025-01-01 --to 2025-01-31\n  fino budget set --category Food --amount 250\n  fino budget increase --category Food --amount 25\n  fino budget list\n  fino search --category Food\n  fino interactive\n\nNOTES:\n  - Dates accept ISO YYYY-MM-DD (recommended). Report also accepts DD.MM.YYYY.\n  - Errors are printed to stderr; exit code is non-zero on failure."
+    after_help = "EXAMPLES:\n  fino add --date 2025-01-03 --description \"Coffee\" --amount 4.65 --type expense --category Food\n  fino import --file ./data.csv\n  fino import --file ./data.ofx --format ofx\n  fino report --from 2025-01-01 --to 2025-01-31\n  fino budget set --category Food --amount 250\n  fino budget increase --category Food --amount 25\n  fino budget list\n  fino search --category Food\n  fino browse\n  fino tui\n  fino interactive\n\nNOTES:\n  - Dates accept ISO YYYY-MM-DD (recommended). Report also accepts DD.MM.YYYY.\n  - Errors are printed to stderr; exit code is non-zero on failure."
 )]
 struct Cli {
     #[command(subcommand)]
@@ -36,6 +37,8 @@ enum Commands {
     Report(ReportArgs),
     Budget(BudgetArgsTop),
     Search(SearchArgs),
+    #[command(alias = "tui")]
+    Browse,
     Interactive,
     Print,
     Remove(RemoveArgs),
@@ -289,6 +292,7 @@ fn run_command(conn: &rusqlite::Connection, cmd: Commands) -> Result<(), String>
             }
             Ok(())
         }
+        Commands::Browse => run_browse(conn),
         Commands::Interactive => {
             println!("Welcome to FINO interactive mode!");
             run_interactive(conn);
