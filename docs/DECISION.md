@@ -8,6 +8,20 @@ Clap was chosen for the primary interface because it provides:
 Trade-offs:
 - A strict CLI can feel less discoverable than a guided prompt for first-time users.
 
+## Why tests are co-located in `src/` files?
+Most tests are written as Rust unit tests next to the code they validate (inside `src/**/*.rs` under `#[cfg(test)]`).
+
+Reasons:
+- **One-person team / speed**: lower overhead and faster iteration.
+- **No forced public APIs**: tests can cover internal helpers without making them `pub` just to be testable.
+- **Better locality**: test intent stays close to the implementation.
+
+Trade-offs:
+- It’s less “standard” than a fully separated `tests/` integration test layout.
+- Cross-module / end-to-end flows are often clearer as integration tests.
+
+Note: the `tests/` folder is still used for fixtures and small docs; see `tests/README.md`.
+
 ## Why an `operations/` folder?
 `operations/` is the “use-case layer”: it holds workflow code that sits between CLI/UI and persistence.
 
